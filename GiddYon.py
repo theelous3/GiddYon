@@ -58,6 +58,10 @@ class Clientor(Thread):
                 self.resp_400()
             else:
                 self.head_handler()
+        elif self.req_type.startswith('POST', 'PUT',
+                                    'DELETE', 'CONNECT',
+                                    'OPTIONS', 'TRACE'):
+            self.resp_501()
         else:
             self.resp_400()
         self.hedrs = None
@@ -70,16 +74,16 @@ class Clientor(Thread):
         if file_size:
             if 'If-Modified-Since' in self.hedrs:
                 if self.check_if_mod():
-                    self.resp_200(file_path, file_size, False)
+                    self.resp_200(file_path, file_size)
                 else:
                     self.resp_304()
             elif 'If-Unmodified-Since' in self.hedrs:
                 if self.check_if_unmod():
-                    self.resp_200(file_path, file_size, False)
+                    self.resp_200(file_path, file_size)
                 else:
                     self.resp_412()
             else:
-                self.resp_200(file_path, file_size, False)
+                self.resp_200(file_path, file_size)
         else:
             self.resp_404()
 
@@ -161,7 +165,7 @@ class Clientor(Thread):
     def resp_100(self):
         self.send(['HTTP/1.1 100 Continue'])
 
-    def resp_200(self, file_path, file_size, h_directive):
+    def resp_200(self, file_path, file_size, h_directive=False):
         http_200 = OrderedDict([('HTTP/1.1', '200 OK'),
                                 ('Date:', self.gmt_formatdate()),
                                 ('Server:', 'GiddYon/0.1.1'),
