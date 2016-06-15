@@ -10,6 +10,7 @@ import magic
 
 
 class Connector(Thread):
+#   creates socket, listens, and starts threading off clients as they connect
     def __init__(self, host, port):
         super().__init__()
         self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -25,6 +26,7 @@ class Connector(Thread):
 
 
 class Clientor(Thread):
+#   threaded client to handle interactions
     def __init__(self, cnect, addr):
         super().__init__()
         self.cnect = cnect
@@ -35,6 +37,7 @@ class Clientor(Thread):
         self.in_body = None
 
     def run(self):
+    #   builds buffer of requests and begins parsing their types
         eof = b'\r\n'
         while eof not in self.buffer:
             try:
@@ -42,6 +45,7 @@ class Clientor(Thread):
             except KeyboardInterrupt:
                 self.cnect.close()
                 self.cnect = None
+                raise SystemExit
         self.buffer = str(self.buffer, 'utf-8')
         recvd = self.buffer.split('\r\n')
         self.req_type = recvd[0]
@@ -69,6 +73,7 @@ class Clientor(Thread):
         self.cnect = None
 
     def get_handler(self):
+    #   handles GET requests and client side caching
         file_path = self.uri_constructor()
         file_size = self.get_size(file_path)
         if file_size:
@@ -88,6 +93,7 @@ class Clientor(Thread):
             self.resp_404()
 
     def head_handler(self):
+    #   handles HEAD requests
         file_path = self.uri_constructor()
         file_size = self.get_size(file_path)
         if file_size:
@@ -96,6 +102,7 @@ class Clientor(Thread):
             self.resp_404()
 
     def send(self, *data, file_path=None):
+    #   packages headder(s) and/or body for sending, and sends
         data = ''.join(data) + '\r\n'
         self.cnect.send(bytes(data, 'utf-8'))
         if file_path:
@@ -109,6 +116,7 @@ class Clientor(Thread):
                         break
 
     def uri_constructor(self):
+    #   builds urls from the given uri and returns target path as string
         uri = self.req_type.split()[1]
         if uri.lower().startswith('http'):
             uri = uri.split('/', 3)[3]
@@ -116,6 +124,8 @@ class Clientor(Thread):
         return file_path
 
     def get_size(self, file_path):
+    #   gets the target's size in bytes and returns as string
+    #   exception indicates 404 should be sent
         try:
             file_size = os.path.getsize(file_path)
         except OSError as e:
@@ -124,14 +134,17 @@ class Clientor(Thread):
             return file_size
 
     def get_type(self, file_path):
+    #   uses python-magic to get mime file type(s)
         return magic.from_file(file_path, mime=True).decode(encoding='utf-8')
 
     def get_mtime(self, file_path):
+    #   gets the target's last modified time and returns string + datetime obj
         t_stamp = os.path.getmtime(file_path)
         t_stamp = datetime.datetime.fromtimestamp(t_stamp)
         return t_stamp.strftime('%a, %d %b %Y %X GMT'), t_stamp
 
     def check_if_mod(self):
+    #   runs comparison for If-Modified-Since headder and returns indicator
         try:
             req_time = time.strptime(self.hedrs['If-Modified-Since'],
                                                 '%a, %d %b %Y %X GMT')
@@ -146,6 +159,7 @@ class Clientor(Thread):
                 return False
 
     def check_if_unmod(self):
+    #   runs comparison for If-Unmodified-Since headder and returns indicator
         try:
             req_time = time.strptime(self.hedrs['If-Unmodified-Since'],
                                                 '%a, %d %b %Y %X GMT')
@@ -160,12 +174,15 @@ class Clientor(Thread):
                 return True
 
     def gmt_formatdate(self):
+    #   formats date correctly for outbound Date headders
         return formatdate().replace('-0000', 'GMT')
 
     def resp_100(self):
+    #   handles http 100 Continue response
         self.send(['HTTP/1.1 100 Continue'])
 
     def resp_200(self, file_path, file_size, h_directive=False):
+    #   handles http 200 OK response for GET and HEAD
         http_200 = OrderedDict([('HTTP/1.1', '200 OK'),
                                 ('Date:', self.gmt_formatdate()),
                                 ('Server:', 'GiddYon/0.1.1'),
@@ -181,12 +198,14 @@ class Clientor(Thread):
             self.send(*response)
 
     def resp_304(self):
+    #   handles http 304 Not Modified response
         http_304 = OrderedDict([('HTTP/1.1', '304 Not Modified'),
                                 ('Date:', self.gmt_formatdate())])
         response = [key + ' ' + value + '\n' for key, value in http_304.items()]
         self.send(*response)
 
     def resp_400(self):
+    #   handles http 400 Bad Request response
         http_400 = OrderedDict([('HTTP/1.1', '400 Bad Request'),
                                 ('Date:', self.gmt_formatdate()),
                                 ('Server:', 'GiddYon/0.1.1')])
@@ -194,6 +213,7 @@ class Clientor(Thread):
         self.send(*response)
 
     def resp_404(self):
+    #   handles ye olde http 404 Not Found response
         http_404 = OrderedDict([('HTTP/1.1', '404 Not Found'),
                                 ('Date:', self.gmt_formatdate()),
                                 ('Server:', 'GiddYon/0.1.1')])
@@ -201,13 +221,16 @@ class Clientor(Thread):
         self.send(*response)
 
     def resp_412(self):
+    #   handles http 412 Precognitive Alert Team
         self.send(['HTTP/1.1 412 Precondition Failed'])
 
     def resp_501(self):
+    #   handles http 501 Not Implemented response for unsupported headder(s)
         self.send(['HTTP/1.1 501 Not Implemented'])
 
 
 def main(host, port):
+#   to increase your mmr, be positive
     cnect_host = Connector(host, port)
     cnect_host.start()
 
