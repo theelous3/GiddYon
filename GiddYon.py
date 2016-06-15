@@ -136,7 +136,7 @@ class Clientor(Thread):
             req_time = time.strptime(self.hedrs['If-Modified-Since'],
                                                 '%a, %d %b %Y %X GMT')
         except:
-            self.resp_400
+            self.resp_400()
         else:
             req_time = datetime.datetime(*req_time[:6])
             mod_time = self.get_mtime(file_path)[1]
@@ -150,7 +150,7 @@ class Clientor(Thread):
             req_time = time.strptime(self.hedrs['If-Unmodified-Since'],
                                                 '%a, %d %b %Y %X GMT')
         except:
-            self.resp_400
+            self.resp_400()
         else:
             req_time = datetime.datetime(*req_time[:6])
             mod_time = self.get_mtime(file_path)[1]
