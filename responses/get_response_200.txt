@@ -1,7 +1,0 @@
-HTTP/1.0 {}
-Date: {}
-Server: Giddyon/0.1.0
-Content-Type: {}
-Content-Length: {}
-
-{}
