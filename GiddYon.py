@@ -20,45 +20,55 @@ class Connector(Thread):
 
     def run(self):
         while True:
-            cnect, addr = self.s.accept()
-            client = Clientor(cnect, addr)
-            client.start()
+            connection, addr = self.s.accept()
+            client = Client()
+            client.run(connection, addr)
 
 
-class Clientor(Thread):
+class Client(Thread):
 #   threaded client to handle interactions
-    def __init__(self, cnect, addr):
+
+    def run(self, connection, addr):
+    #   builds buffer of requests and begins parsing their types
         super().__init__()
-        self.cnect = cnect
+        self.connection = connection
         self.addr = addr
         self.buffer = b''
         self.req_type = None
-        self.hedrs = None
+        self.headders = None
         self.in_body = None
-
-    def run(self):
-    #   builds buffer of requests and begins parsing their types
         eof = b'\r\n'
+
         while eof not in self.buffer:
             try:
-                self.buffer += self.cnect.recv(4096)
+                self.buffer += self.connection.recv(4096)
             except KeyboardInterrupt:
-                self.cnect.close()
-                self.cnect = None
+                self.connection.close()
+                self.connection = None
                 raise SystemExit
         self.buffer = str(self.buffer, 'utf-8')
         recvd = self.buffer.split('\r\n')
+
+    #   builds profile of request
         self.req_type = recvd[0]
-        self.hedrs = {hedr: hedr_guts for hedr, hedr_guts in
+        self.headders = {hedr: hedr_guts for hedr, hedr_guts in
                     [x.split(':', 1) for x in recvd[1:recvd.index('')]]}
         self.in_body = ''.join(recvd[(recvd.index('')+1):])
+
+        self.check_req_method()
+        self.headders = None
+        self.connection.close()
+        self.connection = None
+
+    def check_req_method(self):
+    #   checks request method type
         if self.req_type.startswith('GET'):
-            if 'Expect' in self.hedrs:
+            if 'Expect' in self.headders:
                 self.resp_400()
             else:
                 self.get_handler()
         elif self.req_type.startswith('HEAD'):
-            if 'Expect' in self.hedrs:
+            if 'Expect' in self.headders:
                 self.resp_400()
             else:
                 self.head_handler()
@@ -68,21 +78,18 @@ class Clientor(Thread):
             self.resp_501()
         else:
             self.resp_400()
-        self.hedrs = None
-        self.cnect.close()
-        self.cnect = None
 
     def get_handler(self):
     #   handles GET requests and client side caching
         file_path = self.uri_constructor()
         file_size = self.get_size(file_path)
         if file_size:
-            if 'If-Modified-Since' in self.hedrs:
+            if 'If-Modified-Since' in self.headders:
                 if self.check_if_mod():
                     self.resp_200(file_path, file_size)
                 else:
                     self.resp_304()
-            elif 'If-Unmodified-Since' in self.hedrs:
+            elif 'If-Unmodified-Since' in self.headders:
                 if self.check_if_unmod():
                     self.resp_200(file_path, file_size)
                 else:
@@ -104,14 +111,14 @@ class Clientor(Thread):
     def send(self, *data, file_path=None):
     #   packages headder(s) and/or body for sending, and sends
         data = ''.join(data) + '\r\n'
-        self.cnect.send(bytes(data, 'utf-8'))
+        self.connection.send(bytes(data, 'utf-8'))
         if file_path:
             with open(file_path, 'rb') as got_file:
-                self.cnect.send(bytes('\r\n', 'utf-8'))
+                self.connection.send(bytes('\r\n', 'utf-8'))
                 while True:
                     bytechunk = got_file.read(4096)
                     if bytechunk:
-                        self.cnect.send(bytechunk)
+                        self.connection.send(bytechunk)
                     else:
                         break
 
@@ -146,7 +153,7 @@ class Clientor(Thread):
     def check_if_mod(self):
     #   runs comparison for If-Modified-Since headder and returns indicator
         try:
-            req_time = time.strptime(self.hedrs['If-Modified-Since'],
+            req_time = time.strptime(self.headders['If-Modified-Since'],
                                                 '%a, %d %b %Y %X GMT')
         except:
             self.resp_400()
@@ -161,7 +168,7 @@ class Clientor(Thread):
     def check_if_unmod(self):
     #   runs comparison for If-Unmodified-Since headder and returns indicator
         try:
-            req_time = time.strptime(self.hedrs['If-Unmodified-Since'],
+            req_time = time.strptime(self.headders['If-Unmodified-Since'],
                                                 '%a, %d %b %Y %X GMT')
         except:
             self.resp_400()
@@ -239,3 +246,7 @@ PORT = 50007
 
 if __name__ == '__main__':
     main(HOST, PORT)
+
+
+#refactor http_*
+#mimetypes
