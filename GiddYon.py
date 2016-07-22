@@ -9,20 +9,16 @@ from collections import OrderedDict
 import magic
 
 
-class Connector(Thread):
+def main(host, port):
 #   creates socket, listens, and starts threading off clients as they connect
-    def __init__(self, host, port):
-        super().__init__()
-        self.s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.s.bind((host, port))
-        self.s.listen(5)
-
-    def run(self):
-        while True:
-            connection, addr = self.s.accept()
-            client = Client()
-            client.run(connection, addr)
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    s.bind((host, port))
+    s.listen(5)
+    while True:
+        connection, addr = s.accept()
+        client = Client()
+        client.run(connection, addr)
 
 
 class Client(Thread):
@@ -77,7 +73,7 @@ class Client(Thread):
                                     'OPTIONS', 'TRACE'):
             self.resp_501()
         else:
-            self.resp_400()
+            self.resp_400() 
 
     def get_handler(self):
     #   handles GET requests and client side caching
@@ -169,7 +165,7 @@ class Client(Thread):
     #   runs comparison for If-Unmodified-Since headder and returns indicator
         try:
             req_time = time.strptime(self.headders['If-Unmodified-Since'],
-                                                '%a, %d %b %Y %X GMT')
+                                                    '%a, %d %b %Y %X GMT')
         except:
             self.resp_400()
         else:
@@ -235,18 +231,13 @@ class Client(Thread):
     #   handles http 501 Not Implemented response for unsupported headder(s)
         self.send(['HTTP/1.1 501 Not Implemented'])
 
-
-def main(host, port):
-#   to increase your mmr, be positive
-    cnect_host = Connector(host, port)
-    cnect_host.start()
-
 HOST = ''
-PORT = 50007
+PORT = None
 
 if __name__ == '__main__':
     main(HOST, PORT)
 
 
-#refactor http_*
-#mimetypes
+#   refactor http_* (use decorator)
+#   mimetypes
+
